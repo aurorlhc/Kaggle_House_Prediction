@@ -511,7 +511,7 @@ test_df_munged.drop(drop_cols, axis=1, inplace=True)
 # SalePrice and the log of the predicted price. That does mean we need to 
 # exp() the prediction to get an actual sale price.
 label_df = pd.DataFrame(index = train_df_munged.index, columns=["SalePrice"])
-label_df["SalePrice"] = np.log(train_df["SalePrice"])
+label_df["SalePrice"] = np.log1p(train_df["SalePrice"])
 
 print("Training set size:", train_df_munged.shape)
 print("Test set size:", test_df_munged.shape)
@@ -524,15 +524,15 @@ print("Test set size:", test_df_munged.shape)
 import xgboost as xgb
 
 regr = xgb.XGBRegressor(
-                 colsample_bytree=0.2,
+                 colsample_bytree=0.5,
                  gamma=0.0,
                  learning_rate=0.01,
                  max_depth=4,
                  min_child_weight=1.5,
-                 n_estimators=7200,                                                                  
+                 n_estimators=10000,                                                                  
                  reg_alpha=0.9,
                  reg_lambda=0.6,
-                 subsample=0.2,
+                 subsample=0.5,
                  seed=42,
                  silent=1)
 
@@ -551,7 +551,7 @@ y_pred_xgb = regr.predict(test_df_munged)
 from sklearn.linear_model import Lasso
 
 # I found this best alpha through cross-validation.
-best_alpha = 0.00099
+best_alpha = 0.0005
 
 regr = Lasso(alpha=best_alpha, max_iter=50000)
 regr.fit(train_df_munged, label_df)
@@ -568,8 +568,10 @@ y_pred_lasso = regr.predict(test_df_munged)
 
 # Blend the results of the two regressors and save the prediction to a CSV file.
 
-y_pred = (y_pred_xgb + y_pred_lasso) / 2
-y_pred = np.exp(y_pred)
+# y_pred = (y_pred_xgb + y_pred_lasso) / 2
+y_pred = y_pred_xgb * 0.75 + y_pred_lasso * 0.25
+
+y_pred = np.expm1(y_pred)
 
 pred_df = pd.DataFrame(y_pred, index=test_df["Id"], columns=["SalePrice"])
 pred_df.to_csv('output.csv', header=True, index_label='Id')
